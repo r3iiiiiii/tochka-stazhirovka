@@ -10,23 +10,26 @@ def solve(lines):
     
     hallway_positions = [0, 1, 3, 5, 7, 9, 10]
     
+    # Парсим начальное состояние
     initial_rooms = [[] for _ in range(4)]
     for depth in range(room_depth):
         for room_idx in range(4):
             char = lines[2 + depth][3 + room_idx * 2]
             initial_rooms[room_idx].append(char)
     
-    initial_state = (tuple(tuple(room) for room in initial_rooms), tuple(None for _ in range(11)))
+    # Используем '.' для пустых мест вместо None
+    initial_hallway = ['.' for _ in range(11)]
+    initial_state = (tuple(tuple(room) for room in initial_rooms), tuple(initial_hallway))
     
     @cache
     def is_path_clear(hallway, start, end):
         if start < end:
             for pos in range(start + 1, end + 1):
-                if hallway[pos] is not None:
+                if hallway[pos] != '.':
                     return False
         else:
             for pos in range(end, start):
-                if hallway[pos] is not None:
+                if hallway[pos] != '.':
                     return False
         return True
     
@@ -34,29 +37,26 @@ def solve(lines):
         if target_rooms[amphipod_type] != room_idx:
             return False
         for amphipod in rooms[room_idx]:
-            if amphipod is not None and amphipod != amphipod_type:
+            if amphipod != '.' and amphipod != amphipod_type:
                 return False
         return True
-    
-    def get_room_position(room_idx):
-        return room_positions[room_idx]
     
     def room_has_foreigners(rooms, room_idx):
         target_type = ['A', 'B', 'C', 'D'][room_idx]
         for amphipod in rooms[room_idx]:
-            if amphipod is not None and amphipod != target_type:
+            if amphipod != '.' and amphipod != target_type:
                 return True
         return False
     
     def get_top_amphipod(rooms, room_idx):
         for i in range(room_depth):
-            if rooms[room_idx][i] is not None:
+            if rooms[room_idx][i] != '.':
                 return i, rooms[room_idx][i]
         return None
     
     def get_free_spot(rooms, room_idx):
         for i in range(room_depth - 1, -1, -1):
-            if rooms[room_idx][i] is None:
+            if rooms[room_idx][i] == '.':
                 return i
         return -1
     
@@ -77,7 +77,7 @@ def solve(lines):
                 if amphipod != target_type:
                     return False
         for amphipod in hallway:
-            if amphipod is not None:
+            if amphipod != '.':
                 return False
         return True
     
@@ -107,7 +107,7 @@ def solve(lines):
             
             # Move from hallway to room
             for hallway_pos in hallway_positions:
-                if hallway_list[hallway_pos] is not None:
+                if hallway_list[hallway_pos] != '.':
                     amphipod_type = hallway_list[hallway_pos]
                     target_room = target_rooms[amphipod_type]
                     
@@ -127,7 +127,7 @@ def solve(lines):
                     new_hallway = hallway_list.copy()
                     
                     new_rooms[target_room][free_spot] = amphipod_type
-                    new_hallway[hallway_pos] = None
+                    new_hallway[hallway_pos] = '.'
                     
                     new_state = (rooms_to_tuple(new_rooms), hallway_to_tuple(new_hallway))
                     heapq.heappush(heap, (cost + move_cost, new_state))
@@ -152,7 +152,7 @@ def solve(lines):
                     new_rooms = [list(room) for room in rooms_list]
                     new_hallway = hallway_list.copy()
                     
-                    new_rooms[room_idx][room_spot] = None
+                    new_rooms[room_idx][room_spot] = '.'
                     new_hallway[hallway_pos] = amphipod_type
                     
                     new_state = (rooms_to_tuple(new_rooms), hallway_to_tuple(new_hallway))
