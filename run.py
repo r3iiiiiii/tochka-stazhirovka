@@ -17,11 +17,29 @@ def solve(lines):
             char = lines[2 + depth][3 + room_idx * 2]
             initial_rooms[room_idx].append(char)
     
-    # Используем '.' для пустых мест вместо None
-    initial_hallway = ['.' for _ in range(11)]
-    initial_state = (tuple(tuple(room) for room in initial_rooms), tuple(initial_hallway))
+    # Представляем состояние как хешируемую строку для экономии памяти
+    def state_to_key(rooms, hallway):
+        key = ""
+        for room in rooms:
+            for pos in room:
+                key += pos if pos != '.' else '.'
+            key += "|"
+        for pos in hallway:
+            key += pos if pos != '.' else '.'
+        return key
     
-    @cache
+    def key_to_state(key):
+        parts = key.split("|")
+        rooms = []
+        for i in range(4):
+            room_str = parts[i]
+            rooms.append(list(room_str))
+        hallway = list(parts[4])
+        return rooms, hallway
+    
+    initial_hallway = ['.'] * 11
+    initial_key = state_to_key(initial_rooms, initial_hallway)
+    
     def is_path_clear(hallway, start, end):
         if start < end:
             for pos in range(start + 1, end + 1):
@@ -81,86 +99,88 @@ def solve(lines):
                 return False
         return True
     
-    def rooms_to_tuple(rooms):
-        return tuple(tuple(room) for room in rooms)
-    
-    def hallway_to_tuple(hallway):
-        return tuple(hallway)
-    
-    def dijkstra(start_state):
+    def dijkstra(start_key):
         visited = set()
-        heap = [(0, start_state)]
+        heap = [(0, start_key)]
         
         while heap:
-            cost, state = heapq.heappop(heap)
+            cost, state_key = heapq.heappop(heap)
             
-            if state in visited:
+            if state_key in visited:
                 continue
-            visited.add(state)
+            visited.add(state_key)
             
-            rooms, hallway = state
-            rooms_list = [list(room) for room in rooms]
-            hallway_list = list(hallway)
+            rooms, hallway = key_to_state(state_key)
             
-            if is_final_state(rooms_list, hallway_list):
+            if is_final_state(rooms, hallway):
                 return cost
             
-            # Move from hallway to room
+            # Move from hallway to room (приоритетное движение)
             for hallway_pos in hallway_positions:
-                if hallway_list[hallway_pos] != '.':
-                    amphipod_type = hallway_list[hallway_pos]
+                if hallway[hallway_pos] != '.':
+                    amphipod_type = hallway[hallway_pos]
                     target_room = target_rooms[amphipod_type]
                     
-                    if not is_room_available(rooms_list, target_room, amphipod_type):
+                    if not is_room_available(rooms, target_room, amphipod_type):
                         continue
                     
-                    if not is_path_clear(hallway_to_tuple(hallway_list), hallway_pos, room_positions[target_room]):
+                    if not is_path_clear(hallway, hallway_pos, room_positions[target_room]):
                         continue
                     
-                    free_spot = get_free_spot(rooms_list, target_room)
+                    free_spot = get_free_spot(rooms, target_room)
                     if free_spot == -1:
                         continue
                     
                     move_cost = move_to_room_cost(amphipod_type, hallway_pos, target_room, free_spot)
                     
-                    new_rooms = [list(room) for room in rooms_list]
-                    new_hallway = hallway_list.copy()
+                    new_rooms = [room.copy() for room in rooms]
+                    new_hallway = hallway.copy()
                     
                     new_rooms[target_room][free_spot] = amphipod_type
                     new_hallway[hallway_pos] = '.'
                     
-                    new_state = (rooms_to_tuple(new_rooms), hallway_to_tuple(new_hallway))
-                    heapq.heappush(heap, (cost + move_cost, new_state))
+                    new_key = state_to_key(new_rooms, new_hallway)
+                    heapq.heappush(heap, (cost + move_cost, new_key))
             
-            # Move from room to hallway
+            # Move from room to hallway (только если есть иностранцы)
             for room_idx in range(4):
-                if not room_has_foreigners(rooms_list, room_idx):
+                if not room_has_foreigners(rooms, room_idx):
                     continue
                 
-                top_info = get_top_amphipod(rooms_list, room_idx)
+                top_info = get_top_amphipod(rooms, room_idx)
                 if top_info is None:
                     continue
                 
                 room_spot, amphipod_type = top_info
                 
+                # Если амфипод уже в своей целевой комнате и все ниже него правильные - не двигаем
+                if target_rooms[amphipod_type] == room_idx:
+                    all_below_correct = True
+                    for i in range(room_spot + 1, room_depth):
+                        if rooms[room_idx][i] != amphipod_type:
+                            all_below_correct = False
+                            break
+                    if all_below_correct:
+                        continue
+                
                 for hallway_pos in hallway_positions:
-                    if not is_path_clear(hallway_to_tuple(hallway_list), room_positions[room_idx], hallway_pos):
+                    if not is_path_clear(hallway, room_positions[room_idx], hallway_pos):
                         continue
                     
                     move_cost = move_to_hallway_cost(amphipod_type, room_idx, room_spot, hallway_pos)
                     
-                    new_rooms = [list(room) for room in rooms_list]
-                    new_hallway = hallway_list.copy()
+                    new_rooms = [room.copy() for room in rooms]
+                    new_hallway = hallway.copy()
                     
                     new_rooms[room_idx][room_spot] = '.'
                     new_hallway[hallway_pos] = amphipod_type
                     
-                    new_state = (rooms_to_tuple(new_rooms), hallway_to_tuple(new_hallway))
-                    heapq.heappush(heap, (cost + move_cost, new_state))
+                    new_key = state_to_key(new_rooms, new_hallway)
+                    heapq.heappush(heap, (cost + move_cost, new_key))
         
         return float('inf')
     
-    return dijkstra(initial_state)
+    return dijkstra(initial_key)
 
 def main():
     lines = []
